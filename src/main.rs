@@ -1,4 +1,8 @@
-use bevy::{prelude::*, render::camera::ScalingMode};
+use bevy::{
+    math::{bounding::{Aabb2d, IntersectsVolume}, VectorSpace},
+    prelude::*,
+    render::camera::ScalingMode,
+};
 use rand::prelude::*;
 use std::time::Duration;
 
@@ -14,9 +18,15 @@ fn main() {
         .insert_resource(PillarSpawnConfig {
             timer: Timer::new(Duration::from_millis(2000), TimerMode::Repeating),
         })
+        .add_event::<CollisionEvent>()
         .insert_resource(PillarVelocity(1000.0))
-        .insert_resource(RngResource { rng: SmallRng::from_os_rng() })
-        .add_systems(FixedUpdate, (player_movement, spawn_pillars, pillar_movement))
+        .insert_resource(RngResource {
+            rng: SmallRng::from_os_rng(),
+        })
+        .add_systems(
+            FixedUpdate,
+            (player_movement, spawn_pillars, pillar_movement, check_collision),
+        )
         .add_systems(Update, (jump, smooth_movement))
         .run();
 }
@@ -28,8 +38,11 @@ struct MovementConfig {
 }
 
 #[derive(Resource)]
-struct RngResource { 
-    rng: SmallRng
+struct PlayerSprite(Handle<Image>);
+
+#[derive(Resource)]
+struct RngResource {
+    rng: SmallRng,
 }
 
 #[derive(Resource)]
@@ -43,6 +56,9 @@ struct PosState {
 
 #[derive(Resource)]
 struct PillarVelocity(f32);
+
+#[derive(Event, Default)]
+struct CollisionEvent;
 
 #[derive(Component, PartialEq)]
 struct Player;
@@ -75,6 +91,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Player,
     ));
+    commands.insert_resource(PlayerSprite(asset_server.load("dof.png")));
 }
 
 fn spawn_pillars(
@@ -91,7 +108,10 @@ fn spawn_pillars(
         commands.spawn((
             Sprite::from_image(asset_server.load("dof.png")),
             Transform::from_xyz(0.0, random_height, 0.0),
-            PosState { pos: 500.0, velocity: pillar_velocity.0 },
+            PosState {
+                pos: 500.0,
+                velocity: pillar_velocity.0,
+            },
             Pillar,
         ));
     };
@@ -122,16 +142,21 @@ fn pillar_movement(
 
 fn smooth_movement(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Transform, &mut PosState, Option<&Player>, Option<&Pillar>)>,
+    mut query: Query<(
+        &mut Transform,
+        &mut PosState,
+        Option<&Player>,
+        Option<&Pillar>,
+    )>,
 ) {
     for (mut transform, state, player, pillar) in &mut query {
         let a = time.overstep_fraction();
         let future_position = state.pos + state.velocity * time.delta_secs();
         if player.is_some() {
-            transform.translation.y = state.pos.lerp(future_position, a);
+            transform.translation.y = VectorSpace::lerp(state.pos, future_position, a);
         };
         if pillar.is_some() {
-            transform.translation.x = state.pos.lerp(future_position, a);
+            transform.translation.x = VectorSpace::lerp(state.pos, future_position, a);
         }
     }
 }
@@ -139,9 +164,13 @@ fn smooth_movement(
 fn jump(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     movement: Res<MovementConfig>,
+    event_reader: EventReader<CollisionEvent>,
     mut player_state: Query<&mut PosState, With<Player>>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
+    if !event_reader.is_empty() {
+        println!("Collision");
+    }
+    if keyboard_input.just_pressed(KeyCode::Space) && event_reader.is_empty() {
         for mut player_state in &mut player_state {
             if player_state.velocity < 0.0 {
                 player_state.velocity = movement.min_speed
@@ -152,4 +181,29 @@ fn jump(
             }
         }
     }
+}
+
+fn check_collision(
+    player_query: Query<&Transform, With<Player>>,
+    pillar_query: Query<&Transform, With<Pillar>>,
+    sprites: Res<Assets<Image>>,
+    image_handle: Res<PlayerSprite>,
+    mut event_writer: EventWriter<CollisionEvent>
+) {
+    let image_dimensions = sprites.get(&image_handle.0).unwrap().size();
+    let player_transform = player_query.single();
+    let player_collision = Aabb2d::new(
+        player_transform.translation.truncate(),
+        image_dimensions.as_vec2()
+    );
+    for pillar_transform in &pillar_query {
+        let pillar_collision = Aabb2d::new(
+            pillar_transform.translation.truncate(),
+            pillar_transform.scale.truncate(),
+        );
+        //dbg!(&pillar_collision, &player_collision);
+        if player_collision.intersects(&pillar_collision) {
+            event_writer.send_default();
+        }
+    };
 }
