@@ -10,6 +10,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
+        .insert_resource(IsGameEnded(false))
         .insert_resource(GravityConfig(6000.0))
         .insert_resource(MovementConfig {
             max_speed: 2000.0,
@@ -18,16 +19,15 @@ fn main() {
         .insert_resource(PillarSpawnConfig {
             timer: Timer::new(Duration::from_millis(2000), TimerMode::Repeating),
         })
-        .add_event::<CollisionEvent>()
         .insert_resource(PillarVelocity(1000.0))
         .insert_resource(RngResource {
             rng: SmallRng::from_os_rng(),
         })
         .add_systems(
             FixedUpdate,
-            (player_movement, spawn_pillars, pillar_movement, check_collision),
+            (player_movement, spawn_pillars, /* pillar_movement,  */check_collision),
         )
-        .add_systems(Update, (jump, smooth_movement))
+        .add_systems(Update, (jump.run_if(run_if_not_ended), smooth_movement))
         .run();
 }
 
@@ -57,8 +57,8 @@ struct PosState {
 #[derive(Resource)]
 struct PillarVelocity(f32);
 
-#[derive(Event, Default)]
-struct CollisionEvent;
+#[derive(Resource)]
+struct IsGameEnded(bool);
 
 #[derive(Component, PartialEq)]
 struct Player;
@@ -97,11 +97,16 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn spawn_pillars(
     mut commands: Commands,
     mut pillar: ResMut<PillarSpawnConfig>,
+    window: Query<&Window>,
+    sprites: Res<Assets<Image>>,
     asset_server: Res<AssetServer>,
     pillar_velocity: Res<PillarVelocity>,
+    image_handle: Res<PlayerSprite>,
     time: Res<Time<Fixed>>,
     mut rng: ResMut<RngResource>,
 ) {
+    let window_width = window.single().width();
+    let image_dimensions = sprites.get(&image_handle.0).unwrap().width();
     pillar.timer.tick(time.delta());
     let random_height = rng.rng.random_range(-540.0..540.0);
     if pillar.timer.finished() {
@@ -109,8 +114,9 @@ fn spawn_pillars(
             Sprite::from_image(asset_server.load("dof.png")),
             Transform::from_xyz(0.0, random_height, 0.0),
             PosState {
-                pos: 500.0,
-                velocity: pillar_velocity.0,
+                pos: window_width as f32/*  + image_dimensions.x as f32 */,
+                //velocity: pillar_velocity.0,
+                velocity: 0.0,
             },
             Pillar,
         ));
@@ -164,13 +170,9 @@ fn smooth_movement(
 fn jump(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     movement: Res<MovementConfig>,
-    event_reader: EventReader<CollisionEvent>,
     mut player_state: Query<&mut PosState, With<Player>>,
 ) {
-    if !event_reader.is_empty() {
-        println!("Collision");
-    }
-    if keyboard_input.just_pressed(KeyCode::Space) && event_reader.is_empty() {
+    if keyboard_input.just_pressed(KeyCode::Space) {
         for mut player_state in &mut player_state {
             if player_state.velocity < 0.0 {
                 player_state.velocity = movement.min_speed
@@ -188,7 +190,7 @@ fn check_collision(
     pillar_query: Query<&Transform, With<Pillar>>,
     sprites: Res<Assets<Image>>,
     image_handle: Res<PlayerSprite>,
-    mut event_writer: EventWriter<CollisionEvent>
+    mut is_game_ended: ResMut<IsGameEnded>,
 ) {
     let image_dimensions = sprites.get(&image_handle.0).unwrap().size();
     let player_transform = player_query.single();
@@ -201,9 +203,12 @@ fn check_collision(
             pillar_transform.translation.truncate(),
             pillar_transform.scale.truncate(),
         );
-        //dbg!(&pillar_collision, &player_collision);
         if player_collision.intersects(&pillar_collision) {
-            event_writer.send_default();
+            is_game_ended.0 = true;
         }
     };
+}
+
+fn run_if_not_ended(is_game_ended: Res<IsGameEnded>) -> bool {
+    !is_game_ended.0
 }
