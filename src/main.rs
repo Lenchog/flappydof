@@ -1,5 +1,8 @@
 use bevy::{
-    math::{bounding::{Aabb2d, IntersectsVolume}, VectorSpace},
+    math::{
+        VectorSpace,
+        bounding::{Aabb2d, IntersectsVolume},
+    },
     prelude::*,
     render::camera::ScalingMode,
 };
@@ -12,6 +15,7 @@ fn main() {
         .add_systems(Startup, setup)
         .insert_resource(IsGameEnded(false))
         .insert_resource(GravityConfig(6000.0))
+        .insert_resource(PillarDistance(300.0))
         .insert_resource(MovementConfig {
             max_speed: 2000.0,
             min_speed: 1500.0,
@@ -25,7 +29,12 @@ fn main() {
         })
         .add_systems(
             FixedUpdate,
-            (player_movement, spawn_pillars, /* pillar_movement,  */check_collision),
+            (
+                player_movement,
+                spawn_pillars,
+                pillar_movement,
+                check_collision,
+            ),
         )
         .add_systems(Update, (jump.run_if(run_if_not_ended), smooth_movement))
         .run();
@@ -36,6 +45,9 @@ struct MovementConfig {
     max_speed: f32,
     min_speed: f32,
 }
+
+#[derive(Resource)]
+struct PillarDistance(f32);
 
 #[derive(Resource)]
 struct PlayerSprite(Handle<Image>);
@@ -90,6 +102,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             pos: 540.0,
         },
         Player,
+        ShowAabbGizmo {
+            color: Some(Color::default()),
+        },
     ));
     commands.insert_resource(PlayerSprite(asset_server.load("dof.png")));
 }
@@ -97,28 +112,39 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn spawn_pillars(
     mut commands: Commands,
     mut pillar: ResMut<PillarSpawnConfig>,
-    window: Query<&Window>,
-    sprites: Res<Assets<Image>>,
+    pillar_distance: Res<PillarDistance>,
     asset_server: Res<AssetServer>,
-    pillar_velocity: Res<PillarVelocity>,
-    image_handle: Res<PlayerSprite>,
     time: Res<Time<Fixed>>,
     mut rng: ResMut<RngResource>,
 ) {
-    let window_width = window.single().width();
-    let image_dimensions = sprites.get(&image_handle.0).unwrap().width();
     pillar.timer.tick(time.delta());
-    let random_height = rng.rng.random_range(-540.0..540.0);
+    let random_height = rng
+        .rng
+        .random_range(-540.0 + pillar_distance.0..540.0 - pillar_distance.0);
     if pillar.timer.finished() {
         commands.spawn((
             Sprite::from_image(asset_server.load("dof.png")),
-            Transform::from_xyz(0.0, random_height, 0.0),
+            Transform::from_xyz(0.0, random_height + pillar_distance.0, 0.0),
             PosState {
-                pos: window_width as f32/*  + image_dimensions.x as f32 */,
-                //velocity: pillar_velocity.0,
+                pos: 960.0,
                 velocity: 0.0,
             },
             Pillar,
+            ShowAabbGizmo {
+                color: Some(Color::default()),
+            },
+        ));
+        commands.spawn((
+            Sprite::from_image(asset_server.load("dof.png")),
+            Transform::from_xyz(0.0, random_height - pillar_distance.0, 0.0),
+            PosState {
+                pos: 960.0,
+                velocity: 0.0,
+            },
+            Pillar,
+            ShowAabbGizmo {
+                color: Some(Color::default()),
+            },
         ));
     };
 }
@@ -196,7 +222,7 @@ fn check_collision(
     let player_transform = player_query.single();
     let player_collision = Aabb2d::new(
         player_transform.translation.truncate(),
-        image_dimensions.as_vec2()
+        image_dimensions.as_vec2(),
     );
     for pillar_transform in &pillar_query {
         let pillar_collision = Aabb2d::new(
@@ -206,7 +232,7 @@ fn check_collision(
         if player_collision.intersects(&pillar_collision) {
             is_game_ended.0 = true;
         }
-    };
+    }
 }
 
 fn run_if_not_ended(is_game_ended: Res<IsGameEnded>) -> bool {
