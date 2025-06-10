@@ -9,6 +9,55 @@ use bevy::{
 use rand::prelude::*;
 use std::time::Duration;
 
+#[derive(Resource)]
+struct MovementConfig {
+    max_speed: f32,
+    min_speed: f32,
+}
+
+#[derive(Resource)]
+struct PillarDistance(f32);
+
+#[derive(Resource)]
+struct PlayerSprite(Handle<Image>);
+
+#[derive(Resource)]
+struct RngResource {
+    rng: SmallRng,
+}
+
+#[derive(Resource)]
+struct GravityConfig(f32);
+
+#[derive(Resource)]
+struct Score(u16);
+
+#[derive(Component)]
+struct PosState {
+    pos: f32,
+    velocity: f32,
+}
+
+#[derive(Resource)]
+struct PillarVelocity(f32);
+
+#[derive(Resource)]
+struct IsGameEnded(bool);
+
+#[derive(Component, PartialEq)]
+struct Player;
+
+#[derive(Component, PartialEq)]
+struct Pillar;
+
+#[derive(Component, PartialEq)]
+struct ScoreDisplay;
+
+#[derive(Resource)]
+struct PillarSpawnConfig {
+    timer: Timer,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -16,6 +65,7 @@ fn main() {
         .insert_resource(IsGameEnded(false))
         .insert_resource(GravityConfig(6000.0))
         .insert_resource(PillarDistance(300.0))
+        .insert_resource(Score(0))
         .insert_resource(MovementConfig {
             max_speed: 2000.0,
             min_speed: 1500.0,
@@ -40,58 +90,21 @@ fn main() {
         .run();
 }
 
-#[derive(Resource)]
-struct MovementConfig {
-    max_speed: f32,
-    min_speed: f32,
-}
-
-#[derive(Resource)]
-struct PillarDistance(f32);
-
-#[derive(Resource)]
-struct PlayerSprite(Handle<Image>);
-
-#[derive(Resource)]
-struct RngResource {
-    rng: SmallRng,
-}
-
-#[derive(Resource)]
-struct GravityConfig(f32);
-
-#[derive(Component)]
-struct PosState {
-    pos: f32,
-    velocity: f32,
-}
-
-#[derive(Resource)]
-struct PillarVelocity(f32);
-
-#[derive(Resource)]
-struct IsGameEnded(bool);
-
-#[derive(Component, PartialEq)]
-struct Player;
-
-#[derive(Component, PartialEq)]
-struct Pillar;
-
-#[derive(Resource)]
-struct PillarSpawnConfig {
-    timer: Timer,
-}
-
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Camera2d,
-        OrthographicProjection {
-            scaling_mode: ScalingMode::FixedVertical {
-                viewport_height: 1080.0,
-            },
-            ..OrthographicProjection::default_2d()
-        },
+        Projection::Orthographic (
+            OrthographicProjection {
+                scaling_mode: ScalingMode::FixedVertical {
+                    viewport_height: 1080.0,
+                },
+                ..OrthographicProjection::default_2d()
+            }
+        ),
+    ));
+    commands.spawn((
+        Text::new("Score: 0"),
+        ScoreDisplay,
     ));
     let velocity = 0.0;
     // spawn the player
@@ -114,14 +127,18 @@ fn spawn_pillars(
     mut pillar: ResMut<PillarSpawnConfig>,
     pillar_distance: Res<PillarDistance>,
     asset_server: Res<AssetServer>,
+    mut score: ResMut<Score>,
     time: Res<Time<Fixed>>,
     mut rng: ResMut<RngResource>,
-) {
+    mut query: Query<&mut Text, With<ScoreDisplay>>) {
     pillar.timer.tick(time.delta());
     let random_height = rng
         .rng
         .random_range(-540.0 + pillar_distance.0..540.0 - pillar_distance.0);
     if pillar.timer.finished() {
+        // update score
+        score.0 += 1;
+        query.single_mut().unwrap().0 = format!("Score: {}", score.0);
         commands.spawn((
             Sprite::from_image(asset_server.load("dof.png")),
             Transform::from_xyz(0.0, random_height + pillar_distance.0, 0.0),
@@ -221,7 +238,7 @@ fn check_collision(
     let image_dimensions = sprites.get(&image_handle.0).unwrap().size();
     let player_transform = player_query.single();
     let player_collision = Aabb2d::new(
-        player_transform.translation.truncate(),
+        player_transform.unwrap().translation.truncate(),
         image_dimensions.as_vec2(),
     );
     for pillar_transform in &pillar_query {
