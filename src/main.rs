@@ -54,9 +54,7 @@ struct Pillar;
 struct ScoreDisplay;
 
 #[derive(Resource)]
-struct PillarSpawnConfig {
-    timer: Timer,
-}
+struct PillarTimer(Timer);
 
 fn main() {
     App::new()
@@ -70,9 +68,10 @@ fn main() {
             max_speed: 2000.0,
             min_speed: 1500.0,
         })
-        .insert_resource(PillarSpawnConfig {
-            timer: Timer::new(Duration::from_millis(2000), TimerMode::Repeating),
-        })
+        .insert_resource(PillarTimer(Timer::new(
+            Duration::from_millis(2000),
+            TimerMode::Repeating,
+        )))
         .insert_resource(PillarVelocity(1000.0))
         .insert_resource(RngResource {
             rng: SmallRng::from_os_rng(),
@@ -81,31 +80,33 @@ fn main() {
             FixedUpdate,
             (
                 player_movement,
-                spawn_pillars,
+                spawn_pillars.run_if(pillar_timer),
+                increment_pillar_timer,
                 pillar_movement,
                 check_collision,
             ),
         )
-        .add_systems(Update, (jump.run_if(run_if_not_ended), smooth_movement))
+        .add_systems(
+            Update,
+            (
+                jump.run_if(check_jump),
+                smooth_movement,
+            ),
+        )
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Camera2d,
-        Projection::Orthographic (
-            OrthographicProjection {
-                scaling_mode: ScalingMode::FixedVertical {
-                    viewport_height: 1080.0,
-                },
-                ..OrthographicProjection::default_2d()
-            }
-        ),
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::FixedVertical {
+                viewport_height: 1080.0,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
     ));
-    commands.spawn((
-        Text::new("Score: 0"),
-        ScoreDisplay,
-    ));
+    commands.spawn((Text::new("Score: 0"), ScoreDisplay));
     let velocity = 0.0;
     // spawn the player
     commands.spawn((
@@ -122,26 +123,35 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(PlayerSprite(asset_server.load("dof.png")));
 }
 
+fn increment_pillar_timer(time: Res<Time<Fixed>>, mut timer: ResMut<PillarTimer>) {
+    timer.0.tick(time.delta());
+}
+
+fn pillar_timer(timer: Res<PillarTimer>) -> bool {
+    timer.0.finished()
+}
+
 fn spawn_pillars(
     mut commands: Commands,
-    mut pillar: ResMut<PillarSpawnConfig>,
     pillar_distance: Res<PillarDistance>,
     asset_server: Res<AssetServer>,
     mut score: ResMut<Score>,
-    time: Res<Time<Fixed>>,
     mut rng: ResMut<RngResource>,
-    mut query: Query<&mut Text, With<ScoreDisplay>>) {
-    pillar.timer.tick(time.delta());
+    is_game_ended: Res<IsGameEnded>,
+    mut query: Query<&mut Text, With<ScoreDisplay>>,
+) {
     let random_height = rng
         .rng
         .random_range(-540.0 + pillar_distance.0..540.0 - pillar_distance.0);
-    if pillar.timer.finished() {
-        // update score
+    // update score
+    if !is_game_ended.0 {
         score.0 += 1;
-        query.single_mut().unwrap().0 = format!("Score: {}", score.0);
+    }
+    query.single_mut().unwrap().0 = format!("Score: {}", score.0);
+    for i in [-1.0, 1.0] {
         commands.spawn((
             Sprite::from_image(asset_server.load("dof.png")),
-            Transform::from_xyz(0.0, random_height + pillar_distance.0, 0.0),
+            Transform::from_xyz(0.0, random_height + pillar_distance.0 * i, 0.0),
             PosState {
                 pos: 960.0,
                 velocity: 0.0,
@@ -151,19 +161,7 @@ fn spawn_pillars(
                 color: Some(Color::default()),
             },
         ));
-        commands.spawn((
-            Sprite::from_image(asset_server.load("dof.png")),
-            Transform::from_xyz(0.0, random_height - pillar_distance.0, 0.0),
-            PosState {
-                pos: 960.0,
-                velocity: 0.0,
-            },
-            Pillar,
-            ShowAabbGizmo {
-                color: Some(Color::default()),
-            },
-        ));
-    };
+    }
 }
 
 /// The sprite is animated by changing its translation depending on the time that has passed since
@@ -210,22 +208,19 @@ fn smooth_movement(
     }
 }
 
-fn jump(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    movement: Res<MovementConfig>,
-    mut player_state: Query<&mut PosState, With<Player>>,
-) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
-        for mut player_state in &mut player_state {
-            if player_state.velocity < 0.0 {
-                player_state.velocity = movement.min_speed
-            } else if player_state.velocity > movement.max_speed {
-                player_state.velocity = movement.max_speed
-            } else {
-                player_state.velocity += movement.min_speed
-            }
-        }
+fn jump(movement: Res<MovementConfig>, mut player_state: Query<&mut PosState, With<Player>>) {
+    let mut player_state = player_state.single_mut().unwrap();
+    if player_state.velocity < 0.0 {
+        player_state.velocity = movement.min_speed
+    } else if player_state.velocity > movement.max_speed {
+        player_state.velocity = movement.max_speed
+    } else {
+        player_state.velocity += movement.min_speed
     }
+}
+
+fn check_jump(keyboard_input: Res<ButtonInput<KeyCode>>, is_game_ended: Res<IsGameEnded>) -> bool {
+    keyboard_input.just_pressed(KeyCode::Space) && !is_game_ended.0
 }
 
 fn check_collision(
@@ -236,9 +231,9 @@ fn check_collision(
     mut is_game_ended: ResMut<IsGameEnded>,
 ) {
     let image_dimensions = sprites.get(&image_handle.0).unwrap().size();
-    let player_transform = player_query.single();
+    let player_transform = &player_query.single();
     let player_collision = Aabb2d::new(
-        player_transform.unwrap().translation.truncate(),
+        player_transform.as_ref().unwrap().translation.truncate(),
         image_dimensions.as_vec2(),
     );
     for pillar_transform in &pillar_query {
@@ -246,12 +241,10 @@ fn check_collision(
             pillar_transform.translation.truncate(),
             pillar_transform.scale.truncate(),
         );
-        if player_collision.intersects(&pillar_collision) {
+        if player_collision.intersects(&pillar_collision)
+            || player_transform.as_ref().unwrap().translation.y < -540.0
+        {
             is_game_ended.0 = true;
         }
     }
-}
-
-fn run_if_not_ended(is_game_ended: Res<IsGameEnded>) -> bool {
-    !is_game_ended.0
 }
