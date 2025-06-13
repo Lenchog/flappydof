@@ -1,4 +1,4 @@
-use crate::{AssetServer, Color, Commands, Component, Fixed, HALF_SCREEN_SIZE, IsGameEnded, PosState, Query, Res, ResMut, Resource, Rng, RngResource, Score, ScoreDisplay, ShowAabbGizmo, SpawnRelated, Sprite, Text, Time, Timer, Transform, With, format};
+use crate::{AssetServer, Color, Commands, Component, Fixed, HALF_SCREEN_SIZE, IsGameEnded, PosState, Query, Res, ResMut, Resource, Rng, RngResource, Score, ScoreDisplay, ShowAabbGizmo, Sprite, Text, Time, Timer, Transform, With, format};
 
 #[derive(Component, PartialEq)]
 pub struct Pillar;

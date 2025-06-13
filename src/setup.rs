@@ -1,4 +1,4 @@
-use crate::{AssetServer, Camera2d, Color, Commands, HALF_SCREEN_SIZE, OrthographicProjection, Player, PlayerSprite, PosState, Projection, Res, ScoreDisplay, ShowAabbGizmo, SpawnRelated, Sprite, Text};
+use crate::{AssetServer, Camera2d, Color, Commands, HALF_SCREEN_SIZE, OrthographicProjection, Player, PlayerSprite, PosState, Projection, Res, ScoreDisplay, ShowAabbGizmo, Sprite, Text};
 use bevy::render::camera::ScalingMode;
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
