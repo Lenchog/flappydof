@@ -1,7 +1,15 @@
-use bevy::{prelude::*, window::PresentMode};
-use flappydof::{collision::collision, pillar::{increment_pillar_timer, pillar_movement, pillar_timer, spawn_pillars}, player_movement::{check_jump, jump, player_movement}, setup, smooth_movement::smooth_movement, IsGameEnded, MovementConfig, RngResource, Score, pillar};
-use rand::prelude::*;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::{prelude::*, window::PresentMode};
+use flappydof::{
+    IsGameEnded, MovementConfig, RngResource, Score,
+    collision::collision,
+    pillar,
+    pillar::{increment_pillar_timer, pillar_movement, pillar_timer, spawn_pillars},
+    player_movement::{check_jump, jump, player_movement},
+    setup,
+    smooth_movement::smooth_movement,
+};
+use rand::prelude::*;
 use std::time::Duration;
 
 fn main() {
@@ -20,7 +28,7 @@ fn main() {
         .insert_resource(Score(0))
         .insert_resource(pillar::PillarConfig {
             velocity: 1000.0,
-            span: 300.0,
+            span: 500.0,
         })
         .insert_resource(MovementConfig {
             max_speed: 2000.0,

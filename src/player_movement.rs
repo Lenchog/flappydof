@@ -1,4 +1,7 @@
-use crate::{ButtonInput, Fixed, IsGameEnded, KeyCode, MovementConfig, Player, PosState, Query, Res, Time, With};
+use crate::{
+    ButtonInput, Fixed, IsGameEnded, KeyCode, MovementConfig, Player, PosState, Query, Res, Time,
+    With,
+};
 
 pub fn player_movement(
     time: Res<Time<Fixed>>,
@@ -22,7 +25,8 @@ pub fn jump(movement: Res<MovementConfig>, mut player_state: Query<&mut PosState
     }
 }
 
-#[must_use] pub fn check_jump(
+#[must_use]
+pub fn check_jump(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     is_game_ended: Res<IsGameEnded>,
 ) -> bool {

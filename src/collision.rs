@@ -1,4 +1,7 @@
-use crate::{pillar::Pillar, Assets, HALF_SCREEN_SIZE, Image, IsGameEnded, Player, PlayerSprite, Query, Res, ResMut, Transform, With};
+use crate::{
+    Assets, HALF_SCREEN_SIZE, Image, IsGameEnded, Player, PlayerSprite, Query, Res, ResMut,
+    Transform, With, pillar::Pillar,
+};
 use bevy::math::bounding::{Aabb2d, IntersectsVolume};
 
 pub fn collision(
@@ -27,13 +30,13 @@ pub fn collision(
             pillar_transform.scale.truncate(),
         );
         let is_colliding = player_collision.intersects(&pillar_collision);
-        let is_oob = player_transform
+        let bound = -HALF_SCREEN_SIZE..HALF_SCREEN_SIZE;
+        let height = player_transform
             .as_ref()
             .expect("No player transform found!")
             .translation
-            .y
-            < -HALF_SCREEN_SIZE;
-        if is_colliding || is_oob {
+            .y;
+        if !bound.contains(&height) || is_colliding {
             is_game_ended.0 = true;
         }
     }

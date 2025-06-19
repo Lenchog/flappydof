@@ -1,4 +1,10 @@
-use crate::{AssetServer, Color, Commands, Component, Fixed, HALF_SCREEN_SIZE, IsGameEnded, PosState, Query, Res, ResMut, Resource, Rng, RngResource, Score, ScoreDisplay, ShowAabbGizmo, Sprite, Text, Time, Timer, Transform, With, format};
+use bevy::math::Quat;
+
+use crate::{
+    AssetServer, Color, Commands, Component, Fixed, HALF_SCREEN_SIZE, IsGameEnded, PosState, Query,
+    Res, ResMut, Resource, Rng, RngResource, Score, ScoreDisplay, ShowAabbGizmo, Sprite, Text,
+    Time, Timer, Transform, With, format,
+};
 
 #[derive(Component, PartialEq)]
 pub struct Pillar;
@@ -16,7 +22,8 @@ pub fn increment_pillar_timer(time: Res<Time<Fixed>>, mut timer: ResMut<PillarTi
     timer.0.tick(time.delta());
 }
 
-#[must_use] pub fn pillar_timer(timer: Res<PillarTimer>) -> bool {
+#[must_use]
+pub fn pillar_timer(timer: Res<PillarTimer>) -> bool {
     timer.0.finished()
 }
 
@@ -29,9 +36,8 @@ pub fn spawn_pillars(
     is_game_ended: Res<IsGameEnded>,
     mut query: Query<&mut Text, With<ScoreDisplay>>,
 ) {
-    let random_height = rng
-        .rng
-        .random_range(-HALF_SCREEN_SIZE + pillar_config.span..540.0 - pillar_config.span);
+    let distance_from_x = HALF_SCREEN_SIZE * 1.5 - pillar_config.span;
+    let random_height = rng.rng.random_range(-distance_from_x..distance_from_x);
     // update score
     if !is_game_ended.0 {
         score.0 += 1;
@@ -39,8 +45,9 @@ pub fn spawn_pillars(
     query.single_mut().expect("No score found!").0 = format!("Score: {}", score.0);
     for i in [-1.0, 1.0] {
         commands.spawn((
-            Sprite::from_image(asset_server.load("dof.png")),
-            Transform::from_xyz(0.0, random_height + pillar_config.span * i, 0.0),
+            Sprite::from_image(asset_server.load("garf.png")),
+            Transform::from_xyz(0.0, random_height + pillar_config.span * i, 0.0)
+                .with_rotation(Quat::from_rotation_z(f32::to_radians(i * 90.0 + 90.0))),
             PosState {
                 pos: 960.0,
                 velocity: 0.0,

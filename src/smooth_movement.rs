@@ -1,4 +1,4 @@
-use crate::{pillar::Pillar, Fixed, Player, PosState, Query, Res, Time, Transform};
+use crate::{Fixed, Player, PosState, Query, Res, Time, Transform, pillar::Pillar};
 use bevy::math::VectorSpace;
 
 pub fn smooth_movement(
