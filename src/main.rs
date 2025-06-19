@@ -40,7 +40,7 @@ fn main() {
             TimerMode::Repeating,
         )))
         .insert_resource(RngResource {
-            rng: SmallRng::from_os_rng(),
+            rng: SmallRng::seed_from_u64(1),
         })
         .add_systems(
             FixedUpdate,

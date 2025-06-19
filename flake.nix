@@ -19,14 +19,14 @@
       {
         devShells.default = mkShell rec {
           nativeBuildInputs = [
-            (rust-bin.stable.latest.default.override {
-              extensions = [ "rust-analyzer" "clippy" "rust-src" ];
-            })
+            (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override{
+							extensions = ["rustc-codegen-cranelift-preview"];
+						}))
           ];
           buildInputs = [
             udev alsa-lib vulkan-loader
             xorg.libX11 xorg.libXcursor xorg.libXi xorg.libXrandr
-            libxkbcommon wayland pkg-config
+            libxkbcommon wayland pkg-config clang lld
           ];
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };

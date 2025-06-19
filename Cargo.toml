@@ -1,11 +1,14 @@
+cargo-features = ["codegen-backend"]
 [package]
 name = "flappydof"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "*", features = [ "wayland" ] }
-rand = "*"
+bevy = { version = "*", features = [ "wayland", "dynamic_linking" ]}
+bevy_dylib = { version = "0.16.0-rc.2" }
+rand = { version = "*", features = ["small_rng"]}
+log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
 
 [profile.dev]
 opt-level = 1 
@@ -14,7 +17,7 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-lto = true
+lto = "thin"
 opt-level = 3
 codegen-units = 1
 incremental = false

@@ -37,7 +37,7 @@ pub fn spawn_pillars(
     mut query: Query<&mut Text, With<ScoreDisplay>>,
 ) {
     let distance_from_x = HALF_SCREEN_SIZE * 1.5 - pillar_config.span;
-    let random_height = rng.rng.random_range(-distance_from_x..distance_from_x);
+    let random_height = rng.rng.gen_range(-distance_from_x..distance_from_x);
     // update score
     if !is_game_ended.0 {
         score.0 += 1;
